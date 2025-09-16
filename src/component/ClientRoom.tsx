@@ -15,6 +15,7 @@ export default function ClientRoom({ roomId }: { roomId: string }) {
   const [users, setUsers] = useState<string[]>([]);
 
   useEffect(() => {
+    // 新しく参加した場合のみ作動
     if (joined && username) {
       socket.emit("join", { roomId, username });
     }

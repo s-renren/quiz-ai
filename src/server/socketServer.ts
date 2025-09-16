@@ -20,6 +20,7 @@ io.on("connection", (socket) => {
     io.to(roomId).emit("userList", Array.from(rooms.get(roomId)!));
   });
 
+  // ユーザーが自分の意志で退出した場合の処理
   socket.on("leave", () => {
     const info = userMap.get(socket.id);
     if (info) {
@@ -31,6 +32,7 @@ io.on("connection", (socket) => {
     }
   });
 
+  // ユーザーが切断した場合の処理(うえのと同じ)
   socket.on("disconnect", () => {
     const info = userMap.get(socket.id);
     if (info) {
