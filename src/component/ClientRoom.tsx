@@ -13,6 +13,21 @@ export default function ClientRoom({ roomId }: { roomId: string }) {
   const [username, setUsername] = useState(initialName);
   const [joined, setJoined] = useState(!!initialName);
   const [users, setUsers] = useState<string[]>([]);
+  // const [isOwner, setIsOwner] = useState(false);
+
+  useEffect(() => {
+    const rejectHandler = ({ reason }: { reason: string }) => {
+      toast.error(reason);
+      setTimeout(() => {
+        router.push("/");
+      }, 2000);
+    };
+    socket.on("joinRejected", rejectHandler);
+
+    return () => {
+      socket.off("joinRejected", rejectHandler);
+    };
+  }, [router]);
 
   useEffect(() => {
     // 新しく参加した場合のみ作動
@@ -23,10 +38,16 @@ export default function ClientRoom({ roomId }: { roomId: string }) {
     const handler = (list: string[]) => setUsers(list);
     socket.on("userList", handler);
 
+    const gameHandler = ({ roomId }: { roomId: string }) => {
+      router.push(`/room/${roomId}/game`);
+    };
+    socket.on("gameStarted", gameHandler);
+
     return () => {
       socket.off("userList", handler);
+      socket.off("gameStarted", gameHandler);
     };
-  }, [joined, roomId, username]);
+  }, [joined, roomId, username, router]);
 
   async function handleClickCopyUrl() {
     try {
@@ -87,6 +108,15 @@ export default function ClientRoom({ roomId }: { roomId: string }) {
                 className="flex-1 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition"
               >
                 部屋のURLをコピー
+              </button>
+              <button
+                onClick={() => {
+                  socket.emit("startGame", { roomId });
+                  router.push(`/game/${roomId}`);
+                }}
+                className="flex-1 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+              >
+                ゲームを開始
               </button>
             </div>
 
