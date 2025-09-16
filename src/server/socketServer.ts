@@ -7,6 +7,7 @@ const io = new Server(3001, {
 type RoomStatus = "lobby" | "playing" | "finished";
 
 type Room = {
+  owner: string | null;
   players: Set<string>;
   status: RoomStatus;
 };
@@ -20,7 +21,7 @@ io.on("connection", (socket) => {
   socket.on("join", ({ roomId, username }) => {
     let room = rooms.get(roomId);
     if (!room) {
-      room = { players: new Set(), status: "lobby" };
+      room = { owner: username, players: new Set(), status: "lobby" };
       rooms.set(roomId, room);
     }
 
@@ -33,7 +34,10 @@ io.on("connection", (socket) => {
     userMap.set(socket.id, { roomId, username });
     socket.join(roomId);
 
-    io.to(roomId).emit("userList", Array.from(room.players));
+    io.to(roomId).emit("userList", {
+      users: Array.from(room.players),
+      owner: room.owner,
+    });
   });
 
   // ユーザーが自分の意志で退出した場合の処理
@@ -41,8 +45,17 @@ io.on("connection", (socket) => {
     const info = userMap.get(socket.id);
     if (info) {
       const { roomId, username } = info;
-      rooms.get(roomId)?.players.delete(username);
-      io.to(roomId).emit("userList", Array.from(rooms.get(roomId)!.players));
+      const room = rooms.get(roomId);
+      if (!room) return;
+      room.players.delete(username);
+      // オーナーが抜けたら次の人に権限を渡す
+      if (room.owner === username) {
+        room.owner = room.players.values().next().value ?? null;
+      }
+      io.to(roomId).emit("userList", {
+        users: Array.from(room.players),
+        owner: room.owner,
+      });
       userMap.delete(socket.id);
       socket.leave(roomId);
     }
@@ -53,8 +66,16 @@ io.on("connection", (socket) => {
     const info = userMap.get(socket.id);
     if (info) {
       const { roomId, username } = info;
-      rooms.get(roomId)?.players.delete(username);
-      io.to(roomId).emit("userList", Array.from(rooms.get(roomId)!.players));
+      const room = rooms.get(roomId);
+      if (!room) return;
+      room.players.delete(username);
+      if (room.owner === username) {
+        room.owner = room.players.values().next().value ?? null;
+      }
+      io.to(roomId).emit("userList", {
+        users: Array.from(room.players),
+        owner: room.owner,
+      });
       userMap.delete(socket.id);
     }
   });

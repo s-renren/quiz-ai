@@ -13,7 +13,7 @@ export default function ClientRoom({ roomId }: { roomId: string }) {
   const [username, setUsername] = useState(initialName);
   const [joined, setJoined] = useState(!!initialName);
   const [users, setUsers] = useState<string[]>([]);
-  // const [isOwner, setIsOwner] = useState(false);
+  const [owner, setOwner] = useState<string | null>(null);
 
   useEffect(() => {
     const rejectHandler = ({ reason }: { reason: string }) => {
@@ -35,7 +35,16 @@ export default function ClientRoom({ roomId }: { roomId: string }) {
       socket.emit("join", { roomId, username });
     }
 
-    const handler = (list: string[]) => setUsers(list);
+    const handler = ({
+      users,
+      owner,
+    }: {
+      users: string[];
+      owner: string | null;
+    }) => {
+      setUsers(users);
+      setOwner(owner);
+    };
     socket.on("userList", handler);
 
     const gameHandler = ({ roomId }: { roomId: string }) => {
@@ -109,15 +118,17 @@ export default function ClientRoom({ roomId }: { roomId: string }) {
               >
                 部屋のURLをコピー
               </button>
-              <button
-                onClick={() => {
-                  socket.emit("startGame", { roomId });
-                  router.push(`/game/${roomId}`);
-                }}
-                className="flex-1 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-              >
-                ゲームを開始
-              </button>
+              {owner === username && (
+                <button
+                  onClick={() => {
+                    socket.emit("startGame", { roomId });
+                    router.push(`/game/${roomId}`);
+                  }}
+                  className="flex-1 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                >
+                  ゲームを開始
+                </button>
+              )}
             </div>
 
             <div>
