@@ -4,41 +4,93 @@ const io = new Server(3001, {
   cors: { origin: "http://localhost:3000", methods: ["GET", "POST"] },
 });
 
-const rooms = new Map<string, Set<string>>();
+type RoomStatus = "lobby" | "playing" | "finished";
+
+type Room = {
+  owner: string | null;
+  players: Set<string>;
+  status: RoomStatus;
+};
+
+const rooms = new Map<string, Room>();
 const userMap = new Map<string, { roomId: string; username: string }>();
 
 io.on("connection", (socket) => {
   console.log("✅ A user connected", socket.id);
 
   socket.on("join", ({ roomId, username }) => {
-    if (!rooms.has(roomId)) rooms.set(roomId, new Set());
-    rooms.get(roomId)!.add(username);
+    let room = rooms.get(roomId);
+    if (!room) {
+      room = { owner: username, players: new Set(), status: "lobby" };
+      rooms.set(roomId, room);
+    }
 
+    if (room.status !== "lobby") {
+      socket.emit("joinRejected", { reason: "ゲームは既に開始されています。" });
+      return;
+    }
+
+    room.players.add(username);
     userMap.set(socket.id, { roomId, username });
     socket.join(roomId);
 
-    io.to(roomId).emit("userList", Array.from(rooms.get(roomId)!));
+    io.to(roomId).emit("userList", {
+      users: Array.from(room.players),
+      owner: room.owner,
+    });
   });
 
+  // ユーザーが自分の意志で退出した場合の処理
   socket.on("leave", () => {
     const info = userMap.get(socket.id);
     if (info) {
       const { roomId, username } = info;
-      rooms.get(roomId)?.delete(username);
-      io.to(roomId).emit("userList", Array.from(rooms.get(roomId)!));
+      const room = rooms.get(roomId);
+      if (!room) return;
+      room.players.delete(username);
+      // オーナーが抜けたら次の人に権限を渡す
+      if (room.owner === username) {
+        room.owner = room.players.values().next().value ?? null;
+      }
+      io.to(roomId).emit("userList", {
+        users: Array.from(room.players),
+        owner: room.owner,
+      });
       userMap.delete(socket.id);
       socket.leave(roomId);
     }
   });
 
+  // ユーザーが切断した場合の処理(うえのと同じ)
   socket.on("disconnect", () => {
     const info = userMap.get(socket.id);
     if (info) {
       const { roomId, username } = info;
-      rooms.get(roomId)?.delete(username);
-      io.to(roomId).emit("userList", Array.from(rooms.get(roomId)!));
+      const room = rooms.get(roomId);
+      if (!room) return;
+      room.players.delete(username);
+      if (room.owner === username) {
+        room.owner = room.players.values().next().value ?? null;
+      }
+      io.to(roomId).emit("userList", {
+        users: Array.from(room.players),
+        owner: room.owner,
+      });
       userMap.delete(socket.id);
     }
+  });
+
+  socket.on("startGame", ({ roomId }) => {
+    const room = rooms.get(roomId);
+    if (!room) return;
+
+    room.status = "playing";
+    io.to(roomId).emit("gameStarted", { roomId });
+  });
+
+  socket.on("myName", () => {
+    const userName = userMap.get(socket.id)?.username;
+    socket.emit("userName", { userName });
   });
 });
 
