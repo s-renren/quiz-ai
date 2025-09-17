@@ -12,8 +12,15 @@ type Room = {
   status: RoomStatus;
 };
 
+type User = {
+  roomId: string;
+  username: string;
+  job?: "Questioner" | "Answerer";
+  score?: number;
+}
+
 const rooms = new Map<string, Room>();
-const userMap = new Map<string, { roomId: string; username: string }>();
+const userMap = new Map<string, User>();
 
 io.on("connection", (socket) => {
   console.log("✅ A user connected", socket.id);
