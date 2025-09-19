@@ -15,7 +15,7 @@ type Room = {
 type User = {
   roomId: string;
   username: string;
-  job?: "Questioner" | "Answerer";
+  job: "Questioner" | "Answerer";
   score?: number;
 }
 
@@ -38,7 +38,7 @@ io.on("connection", (socket) => {
     }
 
     room.players.add(username);
-    userMap.set(socket.id, { roomId, username });
+    userMap.set(socket.id, { roomId, username, job: "Answerer" });
     socket.join(roomId);
 
     io.to(roomId).emit("userList", {
@@ -87,6 +87,7 @@ io.on("connection", (socket) => {
     }
   });
 
+  // TODO: ここで参加者の役職を決めるようにする
   socket.on("startGame", ({ roomId }) => {
     const room = rooms.get(roomId);
     if (!room) return;
@@ -99,6 +100,12 @@ io.on("connection", (socket) => {
     const userName = userMap.get(socket.id)?.username;
     socket.emit("userName", { userName });
   });
+
+  socket.on("getStatus", ({ roomId }) => {
+    const room = rooms.get(roomId);
+    if (!room) return;
+    socket.emit("status", { status: room.status });
+  })
 });
 
 console.log("🚀 Socket.IO server running on http://localhost:3001");
