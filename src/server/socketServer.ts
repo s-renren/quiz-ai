@@ -17,7 +17,7 @@ type User = {
   username: string;
   job: "Questioner" | "Answerer";
   score?: number;
-}
+};
 
 const rooms = new Map<string, Room>();
 const userMap = new Map<string, User>();
@@ -92,7 +92,38 @@ io.on("connection", (socket) => {
     const room = rooms.get(roomId);
     if (!room) return;
 
-    room.status = "playing";
+    if (room.status !== "playing") {
+      room.status = "playing";
+    }
+
+    // プレイヤー一覧からランダムに1人選んで Questioner にする
+    const players = Array.from(room.players);
+    if (players.length > 0) {
+      const randomIndex = Math.floor(Math.random() * players.length);
+      const questioner = players[randomIndex];
+
+      // userMap を更新
+      for (const [id, user] of userMap.entries()) {
+        if (user.roomId === roomId) {
+          if (user.username === questioner) {
+            userMap.set(id, { ...user, job: "Questioner" });
+          } else {
+            userMap.set(id, { ...user, job: "Answerer" });
+          }
+        }
+      }
+
+      // 全員に役職を通知
+      io.to(roomId).emit("rolesAssigned", {
+        roles: players.map((username) => {
+          const user = [...userMap.values()].find(
+            (u) => u.username === username && u.roomId === roomId
+          );
+          return { username, job: user?.job ?? "Answerer" };
+        }),
+      });
+    }
+
     io.to(roomId).emit("gameStarted", { roomId });
   });
 
@@ -101,11 +132,20 @@ io.on("connection", (socket) => {
     socket.emit("userName", { userName });
   });
 
+  // MEMO: ここで部屋の状態(人数、得点、役職など)を返すようにする
   socket.on("getStatus", ({ roomId }) => {
     const room = rooms.get(roomId);
     if (!room) return;
-    socket.emit("status", { status: room.status });
-  })
+    socket.emit("status", {
+      status: room.status,
+      players: Array.from(room.players).map((username) => {
+        const user = [...userMap.values()].find(
+          (u) => u.username === username && u.roomId === roomId
+        );
+        return { username, job: user?.job ?? "Answerer" };
+      }),
+    });
+  });
 });
 
 console.log("🚀 Socket.IO server running on http://localhost:3001");
